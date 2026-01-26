@@ -10,6 +10,8 @@
     <!-- PDF Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Marked.js for Markdown Support -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -550,6 +552,65 @@
 
         .message:hover .message-actions {
             opacity: 1;
+        }
+
+        /* Markdown Styling */
+        .message-content p {
+            margin-bottom: 10px;
+        }
+
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-content code {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+        }
+
+        body.dark-mode .message-content code {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .message-content pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .message-content ul,
+        .message-content ol {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+
+        /* Typing Cursor Animation */
+        .typing-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 18px;
+            background: currentColor;
+            margin-left: 4px;
+            vertical-align: middle;
+            animation: blink 0.8s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
         }
 
         .action-btn {
@@ -3653,8 +3714,8 @@
         const headerTitle = document.querySelector('.header-info h1');
         const headerSubtitle = document.querySelector('.header-info p');
 
-        // OPENAI API KEY
-        const API_KEY = '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';
+        // GROQ AI API KEY
+        const API_KEY = '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';
 
         let sessions = [];
         let currentSessionId = null;
@@ -3665,6 +3726,7 @@
         let temperature = 0.7;
         let currentMode = 'normal';
         let isTemporaryChat = false;
+        let isSending = false; // Flag to prevent double sends
 
         // --- SETTINGS MODAL LOGIC ---
         settingsBtn.addEventListener('click', () => {
@@ -3879,17 +3941,16 @@
             const botName = botNameInput.value || 'AI Assistant';
             let modeInstruction = "";
 
-            // Base Mode Instructions
             if (currentMode === 'thinking') {
-                modeInstruction = "You are currently in THINKING MODE. Provide extremely detailed, step-by-step logical reasoning before giving your final answer.";
+                modeInstruction = "You are in THINKING MODE. Use step-by-step reasoning.";
             } else if (currentMode === 'deep-research') {
-                modeInstruction = "You are currently in DEEP RESEARCH MODE. Prioritize academic accuracy and detailed scientific data.";
+                modeInstruction = "You are in DEEP RESEARCH MODE. Prioritize scientific data.";
             } else if (currentMode === 'shopping-research') {
-                modeInstruction = "You are currently in SHOPPING RESEARCH MODE. Provide detailed product comparisons and price-to-value analysis.";
+                modeInstruction = "You are in SHOPPING RESEARCH MODE. Focus on product value.";
             }
 
             if (conversationHistory && conversationHistory.length > 0) {
-                conversationHistory[0].content = `You are a helpful AI assistant named ${botName}. ${modeInstruction} IMPORTANT: If anyone asks who created you, who made you, or about your origins, you MUST reply that you were "Created by Loganathan". Do not mention OpenAI.`;
+                conversationHistory[0].content = `You are ${botName}, a helpful AI assistant. DO NOT provide code examples or long introductions unless asked. IMPORTANT: If asked about your creator, you MUST say "Created by Loganathan". Do not mention OpenAI. ${modeInstruction}`;
             }
         }
 
@@ -4517,11 +4578,17 @@
         });
 
         async function generateAIImage(prompt) {
-            addMessage(`🎨 Generating image for: "${prompt}"...`, true);
+            addMessage(`🎨 Image generation requested: "${prompt}"...`, true);
             userInput.value = '';
-            typingIndicator.classList.add('active');
-            if (typeof sendBtn !== 'undefined' && sendBtn) sendBtn.disabled = true;
 
+            // NOTE: Groq does not support image generation. 
+            // Informing the user that this feature is currently limited to OpenAI.
+            setTimeout(() => {
+                addMessage(`⚠️ Image generation is currently unavailable because the backend has been switched to Groq AI (which is text-only). To use this, an OpenAI DALL-E key is required.`, false);
+            }, 1000);
+            return;
+
+            /* Original DALL-E Logic - Disabled for Groq migration
             try {
                 const response = await fetch('https://api.openai.com/v1/images/generations', {
                     method: 'POST',
@@ -4556,6 +4623,7 @@
                 addMessage('Sorry, image generation failed.', false);
                 console.error(error);
             }
+            */
         }
 
         function clearAttachment() {
@@ -4869,14 +4937,14 @@
             conversationHistory.push({ role: 'user', content: message });
 
             try {
-                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${API_KEY}`
                     },
                     body: JSON.stringify({
-                        model: 'gpt-4o-mini',
+                        model: 'llama-3.3-70b-versatile',
                         messages: conversationHistory,
                         temperature: temperature,
                         max_tokens: 150 // Shorter responses for voice chat
@@ -4944,7 +5012,9 @@
 
         function addMessage(content, isUser, isStreaming = false, image = null, skipSave = false) {
             let messageDiv;
-            if (isStreaming) {
+
+            // Try to find the existing streaming div for bot messages
+            if (!isUser) {
                 messageDiv = chatMessages.querySelector('.message.bot.streaming');
             }
 
@@ -4988,7 +5058,17 @@
             }
 
             const contentDiv = messageDiv.querySelector('.message-content');
-            contentDiv.textContent = content;
+
+            // Render Markdown for bot messages or plain text for user
+            if (!isUser) {
+                contentDiv.innerHTML = marked.parse(content) + (isStreaming ? '<span class="typing-cursor"></span>' : '');
+                // Toggle streaming class based on isStreaming parameter
+                if (isStreaming) messageDiv.classList.add('streaming');
+                else messageDiv.classList.remove('streaming');
+            } else {
+                contentDiv.textContent = content;
+            }
+
             chatMessages.scrollTop = chatMessages.scrollHeight;
 
             // Final Auto-Speak (if enabled and streaming finished)
@@ -5010,6 +5090,8 @@
         }
 
         async function sendMessage() {
+            if (isSending) return; // Prevent double trigger
+
             const message = userInput.value.trim();
             if (!message && !currentAttachment) return;
 
@@ -5033,6 +5115,8 @@
 
                 return; // Don't send to API
             }
+
+            isSending = true; // Block further triggers
 
             // Update session title for new chats
             updateSessionTitle(message);
@@ -5063,22 +5147,33 @@
             lastSpeakIndex = 0;
             speechBuffer = "";
 
+            // Ensure history is compatible with Groq (Text Only)
+            const groqHistory = conversationHistory.map(msg => {
+                if (Array.isArray(msg.content)) {
+                    const textContent = msg.content.find(c => c.type === 'text')?.text || "";
+                    return { ...msg, content: textContent };
+                }
+                return msg;
+            });
+
+            let isSuccess = false;
             try {
-                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${API_KEY}`
                     },
                     body: JSON.stringify({
-                        model: 'gpt-4o-mini',
-                        messages: conversationHistory,
+                        model: 'llama-3.3-70b-versatile',
+                        messages: groqHistory,
                         temperature: temperature,
-                        stream: true // Enable streaming
+                        stream: true
                     })
                 });
 
                 if (!response.ok) throw new Error('API request failed');
+                isSuccess = true;
 
                 if (currentMode === 'thinking') {
                     addMessage("Deep Thinking Mode Active: Processing logic...", false);
@@ -5086,21 +5181,24 @@
 
                 typingIndicator.classList.remove('active');
                 if (typeof sendBtn !== 'undefined' && sendBtn) sendBtn.disabled = false;
+
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let fullBotResponse = "";
                 let botMessageDiv = null;
+                let buffer = "";
 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
 
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep partial line in buffer
 
                     for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const dataStr = line.slice(6).trim();
+                        if (line.trim().startsWith('data: ')) {
+                            const dataStr = line.trim().slice(6);
                             if (dataStr === '[DONE]') continue;
 
                             try {
@@ -5111,31 +5209,33 @@
                                     botMessageDiv = addMessage(fullBotResponse, false, true);
                                 }
                             } catch (e) {
-                                // Ignore parse errors for partial chunks
+                                // Silent fail for partial JSON
                             }
                         }
                     }
                 }
 
-                // Mark completion
                 if (botMessageDiv) {
-                    botMessageDiv.classList.remove('streaming');
+                    addMessage(fullBotResponse, false, false);
                 }
 
-                // Finalize remaining speech buffer if any
                 if (isLiveSpeakHandler && speechBuffer.trim()) {
                     speakSegment(speechBuffer.trim());
                     speechBuffer = "";
                 }
 
                 conversationHistory.push({ role: 'assistant', content: fullBotResponse });
-                saveChatHistory();
+                try { saveChatHistory(); } catch (e) { console.error("History save failed", e); }
 
             } catch (error) {
                 typingIndicator.classList.remove('active');
                 if (typeof sendBtn !== 'undefined' && sendBtn) sendBtn.disabled = false;
-                addMessage('Sorry, connection error.', false);
+                if (!isSuccess) {
+                    addMessage('Sorry, connection error. Please check your key or network.', false);
+                }
                 console.error(error);
+            } finally {
+                isSending = false;
             }
 
             userInput.focus();
